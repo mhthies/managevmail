@@ -56,6 +56,27 @@ def query_user(prompt, var_type, default=None, hide=False):
                 print("Not a valid {}. Please try again.".format(var_type.__name__))
 
 
+def query_database(db, query, data=()):
+    """
+    Helper function to query MySQL database. This basically wraps cursor.execute(query, data), but takes care of
+    creating and closing the connector and fetching the data.
+
+    :param db: The MySQL Connector object to use for the query
+    :param query: The SQL query
+    :param data: The data to be filled into the query. See documentation of mysql.connector library for more information
+    :return: The query result as a list of namedtuples or None if the query didn't produce rows
+    :rtype: [collections.namedtuple] or None
+    """
+    cursor = db.cursor(named_tuple=True)
+    cursor.execute(query, data)
+    if cursor.with_rows:
+        result = cursor.fetchall()
+    else:
+        result = None
+    cursor.close()
+    return result
+
+
 def hash_pw(password):
     """
     Hash the given plain password with Dovecot's SHA512-CRYPT hashing function. The result can be stored to the accounts
@@ -83,53 +104,47 @@ def delete_mailbox(domain, user):
 
 
 def list_accounts(db, _):
-    cursor = db.cursor(named_tuple=True)
-    cursor.execute("SELECT `username`, `domain`, NULL AS `target_username`, NULL AS `target_domain`, `enabled`, "
-                   "`sendonly` "
-                   "FROM `accounts` "
-                   "UNION SELECT `source_username`, `source_domain`, `destination_username`, `destination_domain`, "
-                   "`enabled`, NULL "
-                   "FROM `aliases`"
-                   "ORDER BY `domain`, `username`")
-    for account in cursor:
+    result = query_database(db,
+                            "SELECT `username`, `domain`, NULL AS `target_username`, NULL AS `target_domain`,"
+                            "`enabled`, `sendonly` "
+                            "FROM `accounts` "
+                            "UNION SELECT `source_username`, `source_domain`, `destination_username`,"
+                            "`destination_domain`, `enabled`, NULL "
+                            "FROM `aliases`"
+                            "ORDER BY `domain`, `username`")
+    for account in result:
         print("{}{:>15}@{}{}{}".format("[dis] " if not account.enabled else "      ",
                                        account.username, account.domain,
                                        "\t→ {}@{}".format(account.target_username, account.target_domain)
                                        if account.target_username else "",
                                        "\t[send-only]" if account.sendonly else ""))
-    cursor.close()
     return 0
 
 
 def add_account(db, account_name):
-    cursor = db.cursor(named_tuple=True)
-
     # Check if name is already an account or alias
     user, domain = account_name.split('@')
-    cursor.execute("SELECT COUNT(*) AS c FROM `accounts` WHERE `username` = %s AND `domain` = %s",
-                   (user, domain))
-    if cursor.fetchone().c > 0:
-        cursor.close()
+    result = query_database(db, "SELECT COUNT(*) AS c FROM `accounts` WHERE `username` = %s AND `domain` = %s",
+                            (user, domain))
+    if result[0].c > 0:
         print("The account {} exists already.".format(account_name))
         return 2
-    cursor.execute("SELECT `destination_username`, `destination_domain` "
-                   "FROM `aliases` "
-                   "WHERE `source_username` = %s AND `source_domain` = %s",
-                   (user, domain))
-    current_alias = cursor.fetchone()
-    if current_alias:
+    result = query_database(db, "SELECT `destination_username`, `destination_domain` "
+                                "FROM `aliases` "
+                                "WHERE `source_username` = %s AND `source_domain` = %s",
+                            (user, domain))
+    if result:
+        current_alias = result[0]
         print("Warning: This address is currently an alias of {}@{}.".format(current_alias.destination_username,
                                                                              current_alias.destination_domain))
         if not query_user("Do you still want to create an account at the address?", bool, False):
-            cursor.close()
             return 0
 
     # Check if domain exists
-    cursor.execute("SELECT COUNT(*) AS c FROM `domains` WHERE `domain` = %s",
-                   (domain,))
+    result = query_database(db, "SELECT COUNT(*) AS c FROM `domains` WHERE `domain` = %s",
+                            (domain,))
 
-    if cursor.fetchone().c != 1:
-        cursor.close()
+    if result[0].c != 1:
         print("The domain {} is not registered as virtual mail domain yet. Please add it manually to the database"
               .format(domain))
         return 2
@@ -138,12 +153,10 @@ def add_account(db, account_name):
     pass1 = query_user("New account's password:", str, hide=True)
     if not pass1:
         print("Password must not be empty.")
-        cursor.close()
         return 64
     pass2 = query_user("Type password again:", str, hide=True)
     if pass1 != pass2:
         print("Passwords do not match.")
-        cursor.close()
         return 64
     enabled = query_user("Enable Account?", bool, True)
     send_only = query_user("Create send-only account?", bool, False)
@@ -154,29 +167,24 @@ def add_account(db, account_name):
 
     # Hash password and create account
     pass_hash = hash_pw(pass1)
-    cursor.execute("INSERT INTO `accounts` (`username`, `domain`, `password`, `quota`, `enabled`, `sendonly`) "
-                   "VALUES(%s,%s,%s,%s,%s,%s)",
+    query_database(db, "INSERT INTO `accounts` (`username`, `domain`, `password`, `quota`, `enabled`, `sendonly`) "
+                       "VALUES(%s,%s,%s,%s,%s,%s)",
                    (user, domain, pass_hash, quota, enabled, send_only))
-    cursor.close()
     db.commit()
     return 0
 
 
 def change_account(db, account_name):
-    cursor = db.cursor(named_tuple=True)
-
     # Get current settings and exit if accounts doesn't exist
     user, domain = account_name.split('@')
-    cursor.execute("SELECT `id`, `username`, `domain`, `enabled`, `quota`, `sendonly` "
-                   "FROM `accounts` "
-                   "WHERE `username` = %s AND `domain` = %s",
-                   (user, domain))
-    current_account = cursor.fetchone()
-    if not current_account:
-        cursor.fetchall()
-        cursor.close()
+    result = query_database(db, "SELECT `id`, `username`, `domain`, `enabled`, `quota`, `sendonly` "
+                                "FROM `accounts` "
+                                "WHERE `username` = %s AND `domain` = %s",
+                            (user, domain))
+    if not result:
         print("This account does not exist yet.")
         return 2
+    current_account = result[0]
 
     # Query user for new values
     enabled = query_user("Account enabled?", bool, bool(current_account.enabled))
@@ -187,89 +195,65 @@ def change_account(db, account_name):
         quota = 0
 
     # Store new values
-    cursor.execute("UPDATE `accounts` SET `enabled` = %s, `quota` = %s, `sendonly` = %s WHERE `id` = %s",
+    query_database(db, "UPDATE `accounts` SET `enabled` = %s, `quota` = %s, `sendonly` = %s WHERE `id` = %s",
                    (enabled, quota, send_only, current_account.id))
-    if cursor.rowcount != 1:
-        print("Error: {} rows have been effected by database query.".format(cursor.rowcount))
-        return 2
     print("Stored new values.")
-    cursor.close()
     db.commit()
 
     # Ask user, if mailbox shall be deleted
     if not send_only and current_account.sendonly:
         if query_user("Do you want to delete the user's mailbox?", bool, False):
-            if query_user("really?", bool, False):
-                delete_mailbox(domain, user)
+            delete_mailbox(domain, user)
 
     return 0
 
 
 def change_password(db, account_name):
-    cursor = db.cursor(named_tuple=True)
-
     # Get id and exit if accounts doesn't exist
     user, domain = account_name.split('@')
-    cursor.execute("SELECT `id` FROM `accounts` WHERE `username` = %s AND `domain` = %s",
-                   (user, domain))
-    current_account = cursor.fetchone()
-    if not current_account:
-        cursor.fetchall()
-        cursor.close()
+    result = query_database(db, "SELECT `id` FROM `accounts` WHERE `username` = %s AND `domain` = %s",
+                            (user, domain))
+    if not result:
         print("This account does not exist.")
         return 2
+    current_account = result[0]
 
     # Query user for new password
     pass1 = query_user("New account's password:", str, hide=True)
     if not pass1:
         print("Password must not be empty.")
-        cursor.close()
         return 64
     pass2 = query_user("Type password again:", str, hide=True)
     if pass1 != pass2:
         print("Passwords do not match.")
-        cursor.close()
         return 64
 
     # Hash password and create account
     pass_hash = hash_pw(pass1)
 
     # Hash password and store new hash
-    cursor.execute("UPDATE `accounts` SET `password` = %s WHERE `id` = %s",
+    query_database(db, "UPDATE `accounts` SET `password` = %s WHERE `id` = %s",
                    (pass_hash, current_account.id))
-    if cursor.rowcount != 1:
-        print("Error: {} rows have been effected by database query.".format(cursor.rowcount))
-        return 2
     print("Stored new password.")
-    cursor.close()
     db.commit()
 
 
 def delete_account(db, account_name):
-    cursor = db.cursor(named_tuple=True)
-
     # Get id and exit if accounts doesn't exist
     user, domain = account_name.split('@')
-    cursor.execute("SELECT `id` FROM `accounts` WHERE `username` = %s AND `domain` = %s",
-                   (user, domain))
-    current_account = cursor.fetchone()
-    if not current_account:
-        cursor.fetchall()
-        cursor.close()
+    result = query_database(db, "SELECT `id` FROM `accounts` WHERE `username` = %s AND `domain` = %s",
+                            (user, domain))
+    if not result:
         print("This account does not exist.")
         return 2
+    current_account = result[0]
 
     if not query_user("Do you really want to delete the account {}?".format(account_name), bool, False):
-        cursor.close()
         return 0
 
     # Delete database entry
-    cursor.execute("DELETE FROM `accounts` WHERE `id` = %s", (current_account.id,))
-    if cursor.rowcount != 1:
-        print("Error: {} rows have been effected by database query.".format(cursor.rowcount))
-        return 2
+    query_database(db, "DELETE FROM `accounts` WHERE `id` = %s", (current_account.id,))
     print("Account has been deleted.")
-    cursor.close()
     db.commit()
 
     # Ask user, if mailbox shall be deleted
@@ -281,33 +265,27 @@ def delete_account(db, account_name):
 
 
 def add_alias(db, alias_name):
-    cursor = db.cursor(named_tuple=True)
-
     # Check if name is already an account or alias
     user, domain = alias_name.split('@')
-    cursor.execute("SELECT `destination_username`, `destination_domain` "
-                   "FROM `aliases` "
-                   "WHERE `source_username` = %s AND `source_domain` = %s",
-                   (user, domain))
-    current_alias = cursor.fetchone()
-    if current_alias:
+    result = query_database(db, "SELECT `destination_username`, `destination_domain` "
+                                "FROM `aliases` "
+                                "WHERE `source_username` = %s AND `source_domain` = %s",
+                            (user, domain))
+    if result:
+        current_alias = result[0]
         print("This address is already an alias of {}@{}.".format(current_alias.destination_username,
                                                                   current_alias.destination_domain))
-        cursor.close()
         return 2
-    cursor.execute("SELECT COUNT(*) AS c FROM `accounts` WHERE `username` = %s AND `domain` = %s",
-                   (user, domain))
-    if cursor.fetchone().c > 0:
+    result = query_database(db, "SELECT COUNT(*) AS c FROM `accounts` WHERE `username` = %s AND `domain` = %s",
+                            (user, domain))
+    if result[0].c > 0:
         print("There is already an account for address {}.".format(alias_name))
         if not query_user("Do you still want to create an alias at the address?", bool, False):
-            cursor.close()
             return 0
 
     # Check if domain exists
-    cursor.execute("SELECT COUNT(*) AS c FROM `domains` WHERE `domain` = %s",
-                   (domain,))
-    if cursor.fetchone().c != 1:
-        cursor.close()
+    result = query_database(db, "SELECT COUNT(*) AS c FROM `domains` WHERE `domain` = %s", (domain,))
+    if result[0].c == 0:
         print("The domain {} is not registered as virtual mail domain yet. Please add it manually to the database"
               .format(domain))
         return 2
@@ -323,29 +301,25 @@ def add_alias(db, alias_name):
     enabled = query_user("Enable Alias?", bool, True)
 
     # Create new alias
-    cursor.execute("INSERT INTO `aliases` (`source_username`, `source_domain`, `destination_username`, "
-                   "`destination_domain`, `enabled`) "
-                   "VALUES(%s,%s,%s,%s,%s)",
+    query_database(db, "INSERT INTO `aliases` (`source_username`, `source_domain`, `destination_username`, "
+                       "`destination_domain`, `enabled`) "
+                       "VALUES(%s,%s,%s,%s,%s)",
                    (user, domain, target_user, target_domain, enabled))
-    cursor.close()
     db.commit()
     return 0
 
 
 def change_alias(db, alias_name):
-    cursor = db.cursor(named_tuple=True)
-
     # Get current data
     user, domain = alias_name.split('@')
-    cursor.execute("SELECT `id`, `destination_username`, `destination_domain`, `enabled` "
-                   "FROM `aliases` "
-                   "WHERE `source_username` = %s AND `source_domain` = %s",
-                   (user, domain))
-    current_alias = cursor.fetchone()
-    if not current_alias:
-        cursor.close()
+    result = query_database(db, "SELECT `id`, `destination_username`, `destination_domain`, `enabled` "
+                                "FROM `aliases` "
+                                "WHERE `source_username` = %s AND `source_domain` = %s",
+                            (user, domain))
+    if not result:
         print("{} is currently not registered as alias.".format(alias_name))
         return 2
+    current_alias = result[0]
 
     # Ask user for information
     while True:
@@ -359,43 +333,34 @@ def change_alias(db, alias_name):
     enabled = query_user("Enable Alias?", bool, current_alias.enabled)
 
     # Store new values
-    cursor.execute("UPDATE `aliases` SET  `enabled` = %s, `destination_username` = %s, `destination_domain` = %s "
-                   "WHERE `id` = %s",
+    query_database(db, "UPDATE `aliases` SET  `enabled` = %s, `destination_username` = %s, `destination_domain` = %s "
+                       "WHERE `id` = %s",
                    (enabled, target_user, target_domain, current_alias.id))
-    if cursor.rowcount != 1:
-        print("Error: {} rows have been effected by database query.".format(cursor.rowcount))
-        return 2
     print("Stored new values.")
-    cursor.close()
     db.commit()
 
 
 def delete_alias(db, alias_name):
-    cursor = db.cursor(named_tuple=True)
-
     # Get current data
     user, domain = alias_name.split('@')
-    cursor.execute("SELECT `id`, `destination_username`, `destination_domain`, `enabled` "
-                   "FROM `aliases` "
-                   "WHERE `source_username` = %s AND `source_domain` = %s",
-                   (user, domain))
-    current_alias = cursor.fetchone()
-    if not current_alias:
-        cursor.close()
+    result = query_database(db, "SELECT `id`, `destination_username`, `destination_domain`, `enabled` "
+                                "FROM `aliases` "
+                                "WHERE `source_username` = %s AND `source_domain` = %s",
+                            (user, domain))
+    if not result:
         print("{} is currently not registered as alias.".format(alias_name))
         return 2
+    current_alias = result[0]
 
     # Ask user for confirmation
     print("The alias is {} → {}@{}".format(alias_name, current_alias.destination_domain,
                                            current_alias.destination_username))
     if not query_user("Do you really want to delete it?", bool, False):
-        cursor.close()
         return 0
 
     # Store new values
-    cursor.execute("DELETE FROM `aliases` WHERE `id` = %s", (current_alias.id,))
+    query_database(db, "DELETE FROM `aliases` WHERE `id` = %s", (current_alias.id,))
     print("Alias has been deleted.")
-    cursor.close()
     db.commit()
 
 

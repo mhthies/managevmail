@@ -275,23 +275,128 @@ def delete_account(db, account_name):
     # Ask user, if mailbox shall be deleted
     if query_user("Do you want to delete the user's mailbox?", bool, False):
         delete_mailbox(domain, user)
+    print("Account's Mailbox has been deleted.")
 
     return 0
 
 
 def add_alias(db, alias_name):
-    # TODO
-    print("Not implemented yet.")
+    cursor = db.cursor(named_tuple=True)
+
+    # Check if name is already an account or alias
+    user, domain = alias_name.split('@')
+    cursor.execute("SELECT `destination_username`, `destination_domain` "
+                   "FROM `aliases` "
+                   "WHERE `source_username` = %s AND `source_domain` = %s",
+                   (user, domain))
+    current_alias = cursor.fetchone()
+    if current_alias:
+        print("This address is already an alias of {}@{}.".format(current_alias.destination_username,
+                                                                  current_alias.destination_domain))
+        cursor.close()
+        return 2
+    cursor.execute("SELECT COUNT(*) AS c FROM `accounts` WHERE `username` = %s AND `domain` = %s",
+                   (user, domain))
+    if cursor.fetchone().c > 0:
+        print("There is already an account for address {}.".format(alias_name))
+        if not query_user("Do you still want to create an alias at the address?", bool, False):
+            cursor.close()
+            return 0
+
+    # Check if domain exists
+    cursor.execute("SELECT COUNT(*) AS c FROM `domains` WHERE `domain` = %s",
+                   (domain,))
+    if cursor.fetchone().c != 1:
+        cursor.close()
+        print("The domain {} is not registered as virtual mail domain yet. Please add it manually to the database"
+              .format(domain))
+        return 2
+
+    # Ask user for information
+    while True:
+        target = query_user("Destination address:", str)
+        if re.match(r'^[^@]+@[^@?%:/&=]+.[^@?%:/&=]+$', args.address):
+            break
+        else:
+            print("'{}' is not a valid target email address. Please try again.".format(target))
+    target_user, target_domain = target.strip().split('@')
+    enabled = query_user("Enable Alias?", bool, True)
+
+    # Create new alias
+    cursor.execute("INSERT INTO `aliases` (`source_username`, `source_domain`, `destination_username`, "
+                   "`destination_domain`, `enabled`) "
+                   "VALUES(%s,%s,%s,%s,%s)",
+                   (user, domain, target_user, target_domain, enabled))
+    cursor.close()
+    db.commit()
+    return 0
 
 
 def change_alias(db, alias_name):
-    # TODO
-    print("Not implemented yet.")
+    cursor = db.cursor(named_tuple=True)
+
+    # Get current data
+    user, domain = alias_name.split('@')
+    cursor.execute("SELECT `id`, `destination_username`, `destination_domain`, `enabled` "
+                   "FROM `aliases` "
+                   "WHERE `source_username` = %s AND `source_domain` = %s",
+                   (user, domain))
+    current_alias = cursor.fetchone()
+    if not current_alias:
+        cursor.close()
+        print("{} is currently not registered as alias.".format(alias_name))
+        return 2
+
+    # Ask user for information
+    while True:
+        target = query_user("New destination address:", str, "{}@{}".format(current_alias.destination_username,
+                                                                            current_alias.destination_domain))
+        if re.match(r'^[^@]+@[^@?%:/&=]+.[^@?%:/&=]+$', args.address):
+            break
+        else:
+            print("'{}' is not a valid target email address. Please try again.".format(target))
+    target_user, target_domain = target.strip().split('@')
+    enabled = query_user("Enable Alias?", bool, current_alias.enabled)
+
+    # Store new values
+    cursor.execute("UPDATE `aliases` SET  `enabled` = %s, `destination_username` = %s, `destination_domain` = %s "
+                   "WHERE `id` = %s",
+                   (enabled, target_user, target_domain, current_alias.id))
+    if cursor.rowcount != 1:
+        print("Error: {} rows have been effected by database query.".format(cursor.rowcount))
+        return 2
+    print("Stored new values.")
+    cursor.close()
+    db.commit()
 
 
 def delete_alias(db, alias_name):
-    # TODO
-    print("Not implemented yet.")
+    cursor = db.cursor(named_tuple=True)
+
+    # Get current data
+    user, domain = alias_name.split('@')
+    cursor.execute("SELECT `id`, `destination_username`, `destination_domain`, `enabled` "
+                   "FROM `aliases` "
+                   "WHERE `source_username` = %s AND `source_domain` = %s",
+                   (user, domain))
+    current_alias = cursor.fetchone()
+    if not current_alias:
+        cursor.close()
+        print("{} is currently not registered as alias.".format(alias_name))
+        return 2
+
+    # Ask user for confirmation
+    print("The alias is {} → {}@{}".format(alias_name, current_alias.destination_domain,
+                                           current_alias.destination_username))
+    if not query_user("Do you really want to delete it?", bool, False):
+        cursor.close()
+        return 0
+
+    # Store new values
+    cursor.execute("DELETE FROM `aliases` WHERE `id` = %s", (current_alias.id,))
+    print("Alias has been deleted.")
+    cursor.close()
+    db.commit()
 
 
 # Map cli commands to handler functions

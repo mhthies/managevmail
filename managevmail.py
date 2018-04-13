@@ -271,14 +271,14 @@ def change_account(db, account_name):
     # Store new values
     query_database(db, "UPDATE `accounts` SET `enabled` = %s, `quota` = %s, `sendonly` = %s WHERE `id` = %s",
                    (enabled, quota, send_only, current_account.id))
-    print("Stored new values.")
     db.commit()
+    print("Stored new values.")
 
     # Ask user, if mailbox shall be deleted
     if not send_only and current_account.sendonly:
-        if query_user("Do you want to delete the accounts's mailbox?", bool, False):
+        if query_user("Do you want to delete the accounts's mailbox and sieve scripts?", bool, False):
             delete_mailbox(domain, user)
-            print("Account's Mailbox has been deleted.")
+            print("Account's mailbox has been deleted.")
 
     return 0
 
@@ -309,8 +309,8 @@ def change_password(db, account_name):
     # Hash password and store new hash
     query_database(db, "UPDATE `accounts` SET `password` = %s WHERE `id` = %s",
                    (pass_hash, current_account.id))
-    print("Stored new password.")
     db.commit()
+    print("Stored new password.")
 
 
 def delete_account(db, account_name):
@@ -332,9 +332,9 @@ def delete_account(db, account_name):
     db.commit()
 
     # Ask user, if mailbox shall be deleted
-    if query_user("Do you want to delete the user's mailbox?", bool, False):
+    if query_user("Do you want to delete the user's mailbox and sieve scripts?", bool, False):
         delete_mailbox(domain, user)
-    print("Account's Mailbox has been deleted.")
+        print("Account's mailbox has been deleted.")
 
     return 0
 
@@ -412,8 +412,9 @@ def change_alias(db, alias_name):
     query_database(db, "UPDATE `aliases` SET  `enabled` = %s, `destination_username` = %s, `destination_domain` = %s "
                        "WHERE `id` = %s",
                    (enabled, target_user, target_domain, current_alias.id))
-    print("Stored new values.")
     db.commit()
+    print("Stored new values.")
+    return 0
 
 
 def delete_alias(db, alias_name):
@@ -436,8 +437,9 @@ def delete_alias(db, alias_name):
 
     # Store new values
     query_database(db, "DELETE FROM `aliases` WHERE `id` = %s", (current_alias.id,))
-    print("Alias has been deleted.")
     db.commit()
+    print("Alias has been deleted.")
+    return 0
 
 
 # #####################################################################

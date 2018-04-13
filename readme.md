@@ -59,3 +59,30 @@ The commands are:
 | changealias | Change settings of an alias. Queries interactively for enabled flag and destination address.                                                               |
 | deletealias | Delete an alias. Asks for confirmation.                                                                                                                    |
 
+
+### Examples
+
+```
+$ managevmail.py list
+                  cms@exmaple.com   [sendonly]
+                 info@example.com   → mail@example.com
+                 mail@example.com
+[dis]             old@example.com
+$
+$ managevmail.py addalias webmaster@example.com
+Destination address: mail@example.com
+Enable Alias? [Y/n] 
+Alias has been created.
+$
+$ managevmail.py pw cms@example.com
+New password: 
+Type password again: 
+Stored new password.
+$
+$ managevmail.py delete old@example.com
+Do you really want to delete the account old@example.com? [y/N] y
+Account has been deleted.
+Do you want to delete the user's mailbox? [y/N] y
+Account's Mailbox has been deleted.
+$
+```

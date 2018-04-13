@@ -12,6 +12,10 @@ import os.path
 import mysql.connector
 
 
+# #####################################################################
+# Helper functions
+# #####################################################################
+
 def query_user(prompt, var_type, default=None, hide=False):
     """
     Query user for a certain value and let them try again, if they fail entering a valid value.
@@ -102,6 +106,10 @@ def delete_mailbox(domain, user):
     """
     shutil.rmtree(os.path.join('/var/vmail/mailboxes', domain, user))
 
+
+# #####################################################################
+# User dialog functions for different commands
+# #####################################################################
 
 def list_accounts(db, _):
     result = query_database(db,
@@ -363,6 +371,11 @@ def delete_alias(db, alias_name):
     print("Alias has been deleted.")
     db.commit()
 
+
+# #####################################################################
+# Main script
+# #####################################################################
+# Cli argument parsing, config file parsing and database connection happens here
 
 # Map cli commands to handler functions
 COMMANDS = {

@@ -123,7 +123,12 @@ def delete_mailbox(domain, user):
     :param domain: The domain
     :param user: The user
     """
-    shutil.rmtree(os.path.join('/var/vmail/mailboxes', domain, user))
+    mailbox = os.path.join('/var/vmail/mailboxes', domain, user)
+    if os.path.exists(mailbox):
+        shutil.rmtree(mailbox)
+    sieves = os.path.join('/var/vmail/sieve', domain, user)
+    if os.path.exists(sieves):
+        shutil.rmtree(sieves)
 
 
 # #####################################################################

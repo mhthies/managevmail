@@ -125,7 +125,7 @@ def list_accounts(db, _):
                                        account.username, account.domain,
                                        "\t→ {}@{}".format(account.target_username, account.target_domain)
                                        if account.target_username else "",
-                                       "\t[send-only]" if account.sendonly else ""))
+                                       "\t[sendonly]" if account.sendonly else ""))
     return 0
 
 
@@ -179,6 +179,7 @@ def add_account(db, account_name):
                        "VALUES(%s,%s,%s,%s,%s,%s)",
                    (user, domain, pass_hash, quota, enabled, send_only))
     db.commit()
+    print("Account has been created.")
     return 0
 
 
@@ -210,8 +211,9 @@ def change_account(db, account_name):
 
     # Ask user, if mailbox shall be deleted
     if not send_only and current_account.sendonly:
-        if query_user("Do you want to delete the user's mailbox?", bool, False):
+        if query_user("Do you want to delete the accounts's mailbox?", bool, False):
             delete_mailbox(domain, user)
+            print("Account's Mailbox has been deleted.")
 
     return 0
 
@@ -227,7 +229,7 @@ def change_password(db, account_name):
     current_account = result[0]
 
     # Query user for new password
-    pass1 = query_user("New account's password:", str, hide=True)
+    pass1 = query_user("New password:", str, hide=True)
     if not pass1:
         print("Password must not be empty.")
         return 64
@@ -314,6 +316,7 @@ def add_alias(db, alias_name):
                        "VALUES(%s,%s,%s,%s,%s)",
                    (user, domain, target_user, target_domain, enabled))
     db.commit()
+    print("Alias has been created.")
     return 0
 
 

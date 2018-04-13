@@ -51,6 +51,7 @@ The commands are:
 | Command     | Description                                                                                                                                                |
 |-------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | list        | List all known accounts and aliases. Aliases are displays with their destination, disabled and sendonly addresses are flagged. Does not require an address |
+| show        | Show all relevant information on the account or the alias (or both) to the given address. This even queries the quota usage from Dovecot.                  |
 | add         | Add an account. Queries interactively for quota, enabled flag, sendonly flag and password.                                                                 |
 | change      | Change settings of an account. Queries interactively for quota, enabled flag and sendonly flag.                                                            |
 | pw          | Change password of an account. Queries interactively for the new password.                                                                                 |
@@ -85,4 +86,10 @@ Account has been deleted.
 Do you want to delete the user's mailbox? [y/N] y
 Account's Mailbox has been deleted.
 $
+$ managevmail.py show mail@example.com
+mail@example.com is an account:
+Enabled:     Yes
+Sendonly:    No
+Quota:       512 MiB
+Quota used:  121.3 MiB (23.7 %)
 ```

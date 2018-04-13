@@ -97,6 +97,25 @@ def hash_pw(password):
     return result.stdout.strip()
 
 
+def check_quota_usage(account_name):
+    """
+    Use doveadm to get the current quota usage of the account with given name.
+
+    :param account_name: The name (email address) of the account to check
+    :type account_name: str
+    :return: The quota usage in MiB or None if it could not be found
+    :rtype: float or None
+    """
+    result = subprocess.run(['doveadm', '-f', 'tab', 'quota', 'get', '-u', account_name], stdout=subprocess.PIPE,
+                            universal_newlines=True)
+    if result.returncode == 67:
+        # Account does not exist (or similar error)
+        return None
+    result.check_returncode()
+    value = int(result.stdout.split('\n')[1].split('\t')[2]) / 1024
+    return value
+
+
 def delete_mailbox(domain, user):
     """
     Delete the dovecot mailbox located at /var/vmail/mailboxes/<domain>/<user>/.
@@ -127,6 +146,47 @@ def list_accounts(db, _):
                                        if account.target_username else "",
                                        "\t[sendonly]" if account.sendonly else ""))
     return 0
+
+
+def show_account(db, account_name):
+    user, domain = account_name.split('@')
+    # First, show alias
+    alias_result = query_database(db, "SELECT `destination_username`, `destination_domain`, `enabled` "
+                                      "FROM `aliases` "
+                                      "WHERE `source_username` = %s AND `source_domain` = %s",
+                                  (user, domain))
+    if alias_result:
+        current_alias = alias_result[0]
+        print("<{}> is an alias:\n"
+              "Destination: <{}@{}>\n"
+              "Enabled:     {}".format(account_name, current_alias.destination_username,
+                                       current_alias.destination_domain,
+                                       "Yes" if current_alias.enabled else "No"))
+
+    # Now, show account
+    account_result = query_database(db, "SELECT `enabled`, `quota`, `sendonly` "
+                                        "FROM `accounts` "
+                                        "WHERE `username` = %s AND `domain` = %s",
+                                    (user, domain))
+    if account_result:
+        current_account = account_result[0]
+        quota_used = check_quota_usage(account_name)
+
+        print("{}<{}> is {}an account:\n"
+              "Enabled:     {}\n"
+              "Sendonly:    {}\n"
+              "Quota:       {} MiB\n"
+              "Quota used:  {}".format("\n" if alias_result else "",
+                                       account_name,
+                                       "also " if alias_result else "",
+                                       "Yes" if current_account.enabled else "No",
+                                       "Yes" if current_account.sendonly else "No",
+                                       current_account.quota,
+                                       "{:.1f} MiB ({:.1f} %)".format(quota_used, quota_used/current_account.quota*100)
+                                       if quota_used is not None else "N/A"))
+
+    if not alias_result and not account_result:
+        print("<{}> is neither an account nor an alias.".format(account_name))
 
 
 def add_account(db, account_name):
@@ -383,6 +443,7 @@ def delete_alias(db, alias_name):
 # Map cli commands to handler functions
 COMMANDS = {
     'list': list_accounts,
+    'show': show_account,
     'add': add_account,
     'change': change_account,
     'pw': change_password,

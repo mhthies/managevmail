@@ -28,11 +28,20 @@ $ apt install python3-mysql
 
 Now download the script (or clone it out from GitHub) and move it to any place you like. Move the configuration file
 `config.ini` to `/root/managevmail/config.ini` (which is the default location) or any other place you like (which then
-requires the `-c` parameter to use the script).  Chmod the `config.ini` file, if neccessary, to be only readable for
+requires the `-c` parameter to use the script). Chmod the `config.ini` file, if neccessary, to be only readable for
 root (as it q)
 
-Create a MySQL user for the management and grant it SELECT, UPDATE, INSERT and DELETE privileges on the `vmail` database
-or use the existing `vmail` user's credentials. Enter the MySQL credentials into the `config.ini`.
+Create a MySQL user for the management, grant it SELECT, UPDATE, INSERT and DELETE privileges on the `vmail` database
+and enter the MySQL credentials into the `config.ini`:
+
+```
+> CREATE USER managevmail@localhost IDENTIFIED BY '<your random password>';
+Query OK, 0 rows affected (0.08 sec)
+
+> GRANT SELECT, UPDATE, INSERT, DELETE ON vmail.* TO managevmail@localhost;
+Query OK, 0 rows affected (0.00 sec)
+
+```
 
 
 ## Usage

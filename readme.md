@@ -32,7 +32,7 @@ requires the `-c` parameter to use the script). Chmod the `config.ini` file, if 
 root (or any user/group you want to empower to manage the vmail database).
 
 ```
-$ install -m 640 config.ini /etc/managevmail 
+$ install -D -m 640 config.ini /etc/managevmail/config.ini
 ```
 
 Create a MySQL user for the management, grant it SELECT, UPDATE, INSERT and DELETE privileges on the `vmail` database

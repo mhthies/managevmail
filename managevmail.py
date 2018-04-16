@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+__author__ = "Michael Thies <mail@mhthies.de>"
+__license__ = "MIT"
+
 import argparse
 import configparser
 import getpass

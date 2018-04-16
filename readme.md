@@ -27,9 +27,13 @@ $ apt install python3-mysql
 ```
 
 Now download the script (or clone it out from GitHub) and move it to any place you like. Move the configuration file
-`config.ini` to `/root/managevmail/config.ini` (which is the default location) or any other place you like (which then
+`config.ini` to `/etc/managevmail/config.ini` (which is the default location) or any other place you like (which then
 requires the `-c` parameter to use the script). Chmod the `config.ini` file, if neccessary, to be only readable for
-root (as it q)
+root (or any user/group you want to empower to manage the vmail database).
+
+```
+$ install -m 640 config.ini /etc/managevmail 
+```
 
 Create a MySQL user for the management, grant it SELECT, UPDATE, INSERT and DELETE privileges on the `vmail` database
 and enter the MySQL credentials into the `config.ini`:
@@ -46,8 +50,9 @@ Query OK, 0 rows affected (0.00 sec)
 
 ## Usage
 
-The script requires root privileges to read the config.ini file, use the doveadm command and delete mailbox folders
-after accounts deletions.
+The script is meant to be executed with root privileges. Actually, they are (by default) only required to fetch the
+current quota usage with `doveadm` and delete mailbox directories of deleted accounts, while all other actions require
+only access to the database, i.e. to read the config.ini file.
 
 The basic syntax is:
 

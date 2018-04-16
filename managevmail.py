@@ -469,8 +469,9 @@ SIMPLE_COMMANDS = ['list']
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A python cli interface to make modifications to accounts in the vmail"
                                                  " MySQL database")
-    parser.add_argument('-c', '--config', type=str, default="/root/managevmail/config.ini",
-                        help="The path to the config.ini file, containing database options.")
+    parser.add_argument('-c', '--config', type=str, default="/etc/managevmail/config.ini",
+                        help="The path to the config.ini file, containing database options. Defaults to "
+                             "/etc/managevmail/config.ini")
     parser.add_argument('command', type=str, help="The main command. Must be one of {}"
                                                   .format(", ".join(COMMANDS.keys())))
     parser.add_argument('address', type=str, help="The email address (account or alias) to be added/modified/deleted.",

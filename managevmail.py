@@ -114,6 +114,9 @@ def check_quota_usage(account_name):
     if result.returncode == 67:
         # Account does not exist (or similar error)
         return None
+    if result.returncode == 75:
+        # Permission error
+        return None
     result.check_returncode()
     value = int(result.stdout.split('\n')[1].split('\t')[2]) / 1024
     return value

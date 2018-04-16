@@ -490,7 +490,8 @@ if __name__ == "__main__":
             sys.exit(65)
 
     config = configparser.ConfigParser()
-    config.read(args.config)
+    with open(args.config) as config_file:
+        config.read_file(config_file)
 
     # unfortunately connections and cursors do not support with-contexts
     cnx = mysql.connector.connect(**config['database'])

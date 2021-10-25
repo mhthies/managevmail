@@ -272,7 +272,7 @@ def change_account(db, account_name):
 
     # Store new values
     query_database(db, "UPDATE `accounts` SET `enabled` = %s, `quota` = %s, `sendonly` = %s WHERE `id` = %s",
-                   (enabled, quota, send_only, current_account.id))
+                   (enabled, quota, send_only, current_account['id']))
     db.commit()
     print("Stored new values.")
 

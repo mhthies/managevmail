@@ -277,7 +277,7 @@ def change_account(db, account_name):
     print("Stored new values.")
 
     # Ask user, if mailbox shall be deleted
-    if not send_only and current_account.sendonly:
+    if not send_only and current_account['sendonly']:
         if query_user("Do you want to delete the accounts's mailbox and sieve scripts?", bool, False):
             delete_mailbox(domain, user)
             print("Account's mailbox has been deleted.")

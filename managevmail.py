@@ -12,7 +12,7 @@ import sys
 import re
 import os.path
 
-import mysql.connector
+import pymysql.cursors
 
 
 # #####################################################################
@@ -74,14 +74,13 @@ def query_database(db, query, data=()):
     :return: The query result as a list of namedtuples or None if the query didn't produce rows
     :rtype: [collections.namedtuple] or None
     """
-    cursor = db.cursor(named_tuple=True)
-    cursor.execute(query, data)
-    if cursor.with_rows:
-        result = cursor.fetchall()
-    else:
-        result = None
-    cursor.close()
-    return result
+    with db.cursor(named_tuple=True) as cursor:
+        cursor.execute(query, data)
+        if cursor.with_rows:
+            result = cursor.fetchall()
+        else:
+            result = None
+        return result
 
 
 def hash_pw(password):
@@ -497,8 +496,7 @@ if __name__ == "__main__":
     with open(args.config) as config_file:
         config.read_file(config_file)
 
-    # unfortunately connections and cursors do not support with-contexts
-    cnx = mysql.connector.connect(**config['database'])
-    result = COMMANDS[args.command](cnx, args.address)
-    cnx.close()
+    cnx = pymysql.connect(**config['database'])
+    with cnx:
+        result = COMMANDS[args.command](cnx, args.address)
     sys.exit(result)

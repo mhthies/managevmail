@@ -23,7 +23,7 @@ it is required rather rarely.
 You need Python 3 and the Python 3-MySQL-Connector:
 
 ```
-$ apt install python3-mysql
+$ apt install python3-pymysql
 ```
 
 Now download the script (or clone it out from GitHub) and move it to any place you like. Move the configuration file
